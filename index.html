@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>플랜두씨 다이어리 1</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 p-6 max-w-5xl mx-auto">
+
+    <!-- 카드 5: 공개 안내 문구 -->
+    <div class="bg-amber-100 border-l-4 border-amber-500 text-amber-900 p-4 mb-6 rounded shadow-sm">
+        <p class="font-bold">지금은 로그인이 없어 링크를 아는 사람은 누구나 볼 수 있습니다. 남이 봐도 괜찮은 내용만 넣으세요.</p>
+    </div>
+
+    <header class="flex justify-between items-center mb-8 border-b pb-4">
+        <h1 class="text-3xl font-extrabold text-indigo-600">플랜두씨 다이어리 (Plan-Do-See)</h1>
+        <!-- 카드 5: JSON 내보내기 -->
+        <button onclick="exportDataJSON()" class="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded text-sm font-medium shadow">
+            JSON 데이터 내보내기
+        </button>
+    </header>
+
+    <!-- 카드 4: 돌아보기 (See) 현황 -->
+    <section class="bg-white p-6 rounded-xl shadow-md mb-8 border border-slate-200">
+        <h2 class="text-xl font-bold mb-4 text-slate-700">돌아보기 (See) 현황</h2>
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
+            <!-- 클릭 시 해당 위치로 이동 (T06-C83) -->
+            <div onclick="scrollToSection('section-plans')" class="cursor-pointer bg-indigo-50 p-3 rounded-lg hover:bg-indigo-100 transition">
+                <p class="text-xs text-slate-500 font-semibold">전체 계획 수</p>
+                <p id="stat-plan-count" class="text-2xl font-extrabold text-indigo-600">0</p>
+            </div>
+            <div onclick="scrollToSection('section-todos')" class="cursor-pointer bg-emerald-50 p-3 rounded-lg hover:bg-emerald-100 transition">
+                <p class="text-xs text-slate-500 font-semibold">완료된 할 일</p>
+                <p id="stat-completed-count" class="text-2xl font-extrabold text-emerald-600">0</p>
+            </div>
+            <div onclick="scrollToSection('section-todos')" class="cursor-pointer bg-rose-50 p-3 rounded-lg hover:bg-rose-100 transition">
+                <p class="text-xs text-slate-500 font-semibold">지연된 할 일 (서울기준)</p>
+                <p id="stat-delayed-count" class="text-2xl font-extrabold text-rose-600">0</p>
+            </div>
+            <div onclick="scrollToSection('section-todos')" class="cursor-pointer bg-amber-50 p-3 rounded-lg hover:bg-amber-100 transition">
+                <p class="text-xs text-slate-500 font-semibold">막힘 기록 수</p>
+                <p id="stat-blocked-count" class="text-2xl font-extrabold text-amber-600">0</p>
+            </div>
+            <div class="bg-purple-50 p-3 rounded-lg">
+                <p class="text-xs text-slate-500 font-semibold">시간 차이 (실제-예상)</p>
+                <p id="stat-time-diff" class="text-xl font-extrabold text-purple-600">0시간</p>
+            </div>
+        </div>
+
+        <!-- 다음 계획으로 넘길 고칠 점 (T06-C33) -->
+        <div class="mt-6 border-t pt-4">
+            <h3 class="font-bold text-sm text-slate-600 mb-2">다음 계획으로 넘길 고칠 점 1건</h3>
+            <div class="flex gap-2">
+                <input type="text" id="improvement-input" placeholder="다음 계획에 반영할 피드백 작성" class="flex-1 border p-2 rounded text-sm">
+                <button onclick="saveImprovement()" class="bg-indigo-600 text-white px-4 py-2 rounded text-sm">넘기기</button>
+            </div>
+            <ul id="improvement-list" class="mt-2 text-sm text-slate-600 list-disc pl-5"></ul>
+        </div>
+    </section>
+
+    <!-- 카드 1: 계획 세우기 (Plan) -->
+    <section id="section-plans" class="bg-white p-6 rounded-xl shadow-md mb-8 border border-slate-200">
+        <h2 class="text-xl font-bold mb-4 text-slate-700">1. 계획 세우기 (Plan)</h2>
+        <form onsubmit="handleCreatePlan(event)" class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+            <input type="text" id="plan-title" placeholder="계획 제목" required class="border p-2 rounded text-sm">
+            <input type="text" id="plan-period" placeholder="기간 (예: 2026.09)" class="border p-2 rounded text-sm">
+            <input type="number" id="plan-priority" placeholder="우선순위 (숫자)" class="border p-2 rounded text-sm">
+            <input type="text" id="plan-criterion" placeholder="성공 기준" class="border p-2 rounded text-sm">
+            <input type="number" id="plan-hours" placeholder="예상 시간 (시간)" class="border p-2 rounded text-sm">
+            <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white p-2 rounded text-sm font-semibold">계획 추가</button>
+        </form>
+
+        <div id="plans-container" class="space-y-4"></div>
+    </section>
+
+    <!-- 카드 2 & 3: 할 일 및 실행 기록 (Do) -->
+    <section id="section-todos" class="bg-white p-6 rounded-xl shadow-md mb-8 border border-slate-200">
+        <h2 class="text-xl font-bold mb-4 text-slate-700">2. 할 일 & 실행 기록 (Do)</h2>
+
+        <!-- 검색, 거르기, 정렬 (카드 2) -->
+        <div class="flex flex-wrap gap-2 mb-4 bg-slate-100 p-3 rounded-lg text-sm">
+            <input type="text" id="search-keyword" oninput="renderTodos()" placeholder="검색어 입력" class="border p-2 rounded">
+            <select id="filter-status" onchange="renderTodos()" class="border p-2 rounded">
+                <option value="all">전체 상태</option>
+                <option value="pending">진행 중</option>
+                <option value="completed">완료</option>
+            </select>
+            <select id="sort-criterion" onchange="renderTodos()" class="border p-2 rounded">
+                <option value="created">최신순 정렬 (기준: 생성일시)</option>
+                <option value="priority">우선순위순 정렬 (기준: 우선순위 오름차순)</option>
+                <option value="due_date">마감일순 정렬 (기준: 마감일 오름차순)</option>
+            </select>
+            <span class="text-xs text-slate-500 self-center">※ 화면에 명시된 정렬 기준에 따라 정렬됩니다.</span>
+        </div>
+
+        <!-- 할 일 추가 폼 -->
+        <form onsubmit="handleCreateTodo(event)" class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6 bg-slate-50 p-4 rounded-lg border">
+            <select id="todo-plan-id" required class="border p-2 rounded text-sm"><option value="">선택할 계획 없음</option></select>
+            <input type="text" id="todo-title" placeholder="할 일 제목" required class="border p-2 rounded text-sm">
+            <input type="datetime-local" id="todo-due" class="border p-2 rounded text-sm">
+            <input type="number" id="todo-priority" placeholder="우선순위" class="border p-2 rounded text-sm">
+            <input type="text" id="todo-tags" placeholder="태그" class="border p-2 rounded text-sm">
+            <input type="number" id="todo-hours" placeholder="예상 시간(시간)" class="border p-2 rounded text-sm">
+            <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white p-2 rounded text-sm font-semibold md:col-span-3">할 일 추가</button>
+        </form>
+
+        <div id="todos-container" class="space-y-4"></div>
+    </section>
+
+    <script>
+        // === LocalStorage 데이터 관리 ===
+        const STORAGE_KEY = 'pds_diary_data_v1';
+
+        function loadData() {
+            const data = localStorage.getItem(STORAGE_KEY);
+            return data ? JSON.parse(data) : { plans: [], planHistories: [], todos: [], executionLogs: [], improvements: [] };
+        }
+
+        function saveData(state) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        }
+
+        let state = loadData();
+
+        // XSS 방지 함수 (T06-C57)
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+
+        function initApp() {
+            renderPlans();
+            renderTodos();
+            renderStats();
+            renderImprovements();
+        }
+
+        // --- 카드 1: 계획 관리 ---
+        function handleCreatePlan(e) {
+            e.preventDefault();
+            const newPlan = {
+                id: crypto.randomUUID(),
+                title: document.getElementById('plan-title').value,
+                period: document.getElementById('plan-period').value,
+                priority: parseInt(document.getElementById('plan-priority').value) || 0,
+                success_criterion: document.getElementById('plan-criterion').value,
+                estimated_hours: parseFloat(document.getElementById('plan-hours').value) || 0,
+                created_at: new Date().toISOString()
+            };
+            state.plans.push(newPlan);
+            saveData(state);
+            e.target.reset();
+            initApp();
+        }
+
+        function handleUpdatePlan(id) {
+            const plan = state.plans.find(p => p.id === id);
+            const newTitle = prompt("수정할 계획 제목:", plan.title);
+            if (!newTitle) return;
+
+            // 1. 기존 내용 이력에 보존 (T06-C08)
+            state.planHistories.push({
+                id: crypto.randomUUID(),
+                plan_id: plan.id,
+                title: plan.title,
+                priority: plan.priority,
+                success_criterion: plan.success_criterion,
+                estimated_hours: plan.estimated_hours,
+                updated_at: new Date().toISOString()
+            });
+
+            // 2. 수정 반영
+            plan.title = newTitle;
+            saveData(state);
+            initApp();
+        }
+
+        function renderPlans() {
+            const container = document.getElementById('plans-container');
+            const selectContainer = document.getElementById('todo-plan-id');
+            container.innerHTML = '';
+            selectContainer.innerHTML = '<option value="">선택할 계획 없음</option>';
+
+            state.plans.forEach(plan => {
+                selectContainer.innerHTML += `<option value="${plan.id}">${escapeHtml(plan.title)}</option>`;
+                const histories = state.planHistories.filter(h => h.plan_id === plan.id);
+                
+                container.innerHTML += `
+                    <div class="border p-4 rounded-lg bg-slate-50">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <h3 class="font-bold text-lg">${escapeHtml(plan.title)}</h3>
+                                <p class="text-xs text-slate-500">기간: ${escapeHtml(plan.period)} | 우선순위: ${plan.priority} | 예상: ${plan.estimated_hours}h</p>
+                                <p class="text-sm mt-1">성공 기준: ${escapeHtml(plan.success_criterion)}</p>
+                            </div>
+                            <button onclick="handleUpdatePlan('${plan.id}')" class="text-xs bg-slate-200 hover:bg-slate-300 px-2 py-1 rounded">수정 (이력 남김)</button>
+                        </div>
+                        ${histories.length > 0 ? `
+                            <div class="mt-2 text-xs text-slate-400 border-t pt-1">
+                                <strong>[수정 전 이전 이력]:</strong> ${histories.map(h => escapeHtml(h.title)).join(', ')}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+        }
+
+        // --- 카드 2 & 3: 할 일 및 실행 기록 ---
+        function handleCreateTodo(e) {
+            e.preventDefault();
+            const tags = document.getElementById('todo-tags').value.split(',').map(t => t.trim()).filter(Boolean);
+            const newTodo = {
+                id: crypto.randomUUID(),
+                plan_id: document.getElementById('todo-plan-id').value || null,
+                title: document.getElementById('todo-title').value,
+                due_date: document.getElementById('todo-due').value || null,
+                priority: parseInt(document.getElementById('todo-priority').value) || 0,
+                tags: tags,
+                estimated_hours: parseFloat(document.getElementById('todo-hours').value) || 0,
+                status: 'pending',
+                created_at: new Date().toISOString()
+            };
+            state.todos.push(newTodo);
+            saveData(state);
+            e.target.reset();
+            initApp();
+        }
+
+        // 연달아 눌러도 완료 중복 등록 차단 (T06-C21)
+        function handleCompleteTodo(todoId) {
+            const existingLog = state.executionLogs.find(l => l.todo_id === todoId);
+            if (existingLog) {
+                alert("이미 완료 기록이 존재하는 할 일입니다.");
+                return;
+            }
+
+            const start = prompt("시작 시각 (YYYY-MM-DD HH:MM):", new Date().toISOString().slice(0, 16));
+            const end = prompt("끝난 시각 (YYYY-MM-DD HH:MM):", new Date().toISOString().slice(0, 16));
+            const actualHours = parseFloat(prompt("실제로 걸린 시간(시간 단위):", "1")) || 0;
+            const blockedReason = prompt("막혔던 이유 (없으면 빈칸):", "");
+
+            state.executionLogs.push({
+                id: crypto.randomUUID(),
+                todo_id: todoId,
+                start_time: start,
+                end_time: end,
+                actual_hours: actualHours,
+                blocked_reason: blockedReason,
+                created_at: new Date().toISOString()
+            });
+
+            const todo = state.todos.find(t => t.id === todoId);
+            if (todo) todo.status = 'completed';
+
+            saveData(state);
+            initApp();
+        }
+
+        function handleRevertTodo(todoId) {
+            state.executionLogs = state.executionLogs.filter(l => l.todo_id !== todoId);
+            const todo = state.todos.find(t => t.id === todoId);
+            if (todo) todo.status = 'pending';
+            saveData(state);
+            initApp();
+        }
+
+        function handleDeleteTodo(todoId) {
+            state.todos = state.todos.filter(t => t.id !== todoId);
+            state.executionLogs = state.executionLogs.filter(l => l.todo_id !== todoId);
+            saveData(state);
+            initApp();
+        }
+
+        function renderTodos() {
+            const container = document.getElementById('todos-container');
+            const keyword = document.getElementById('search-keyword').value.toLowerCase();
+            const filterStatus = document.getElementById('filter-status').value;
+            const sortCriterion = document.getElementById('sort-criterion').value;
+
+            let list = [...state.todos];
+
+            if (filterStatus !== 'all') {
+                list = list.filter(t => t.status === filterStatus);
+            }
+            if (keyword) {
+                list = list.filter(t => t.title.toLowerCase().includes(keyword));
+            }
+
+            list.sort((a, b) => {
+                if (sortCriterion === 'priority') return a.priority - b.priority;
+                if (sortCriterion === 'due_date') return new Date(a.due_date || '9999-12-31') - new Date(b.due_date || '9999-12-31');
+                return new Date(b.created_at) - new Date(a.created_at);
+            });
+
+            container.innerHTML = '';
+            list.forEach(todo => {
+                const log = state.executionLogs.find(l => l.todo_id === todo.id);
+                const isCompleted = todo.status === 'completed';
+
+                container.innerHTML += `
+                    <div class="border p-4 rounded-lg bg-white flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs px-2 py-0.5 rounded font-bold ${isCompleted ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}">
+                                    ${isCompleted ? '완료' : '진행중'}
+                                </span>
+                                <h4 class="font-bold">${escapeHtml(todo.title)}</h4>
+                            </div>
+                            <p class="text-xs text-slate-500 mt-1">
+                                마감: ${todo.due_date ? new Date(todo.due_date).toLocaleString('ko-KR') : '없음'} | 
+                                우선순위: ${todo.priority} | 예상: ${todo.estimated_hours}h | 
+                                태그: ${todo.tags ? todo.tags.map(t => escapeHtml(t)).join(', ') : '없음'}
+                            </p>
+                            ${log ? `
+                                <div class="mt-2 text-xs bg-slate-50 p-2 rounded border">
+                                    <p class="font-semibold text-slate-700">[실제 실행 기록]</p>
+                                    <p>실제 소요: ${log.actual_hours}h \vert{} 막힌 이유: ${escapeHtml(log.blocked_reason) || '없음'}</p>
+                                </div>
+                            ` : ''}
+                        </div>
+                        <div class="flex gap-1 text-xs">
+                            ${!isCompleted ? 
+                                `<button onclick="handleCompleteTodo('${todo.id}')" class="bg-emerald-600 text-white px-3 py-1.5 rounded">완료 처리</button>` : 
+                                `<button onclick="handleRevertTodo('${todo.id}')" class="bg-slate-500 text-white px-3 py-1.5 rounded">되돌리기</button>`
+                            }
+                            <button onclick="handleDeleteTodo('${todo.id}')" class="bg-rose-500 text-white px-3 py-1.5 rounded">삭제</button>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // --- 카드 4: 돌아보기 (See) 계산 ---
+        function renderStats() {
+            const planCount = state.plans.length;
+            const completedCount = state.todos.filter(t => t.status === 'completed').length;
+
+            // 서울 시간 기준 지연 수 계산 (T06-C30)
+            const nowTime = new Date().getTime();
+            const delayedCount = state.todos.filter(t => {
+                if (t.status === 'completed' || !t.due_date) return false;
+                return new Date(t.due_date).getTime() < nowTime;
+            }).length;
+
+            // 막힘 수 계산 (T06-C31)
+            const blockedCount = state.executionLogs.filter(l => l.blocked_reason && l.blocked_reason.trim() !== '').length;
+
+            // 시간 차이 (실제 시간 - 예상 시간) (T06-C32)
+            const totalEstimated = state.todos.reduce((sum, t) => sum + (Number(t.estimated_hours) || 0), 0);
+            const totalActual = state.executionLogs.reduce((sum, l) => sum + (Number(l.actual_hours) || 0), 0);
+            const diff = totalActual - totalEstimated;
+
+            document.getElementById('stat-plan-count').innerText = planCount;
+            document.getElementById('stat-completed-count').innerText = completedCount;
+            document.getElementById('stat-delayed-count').innerText = delayedCount;
+            document.getElementById('stat-blocked-count').innerText = blockedCount;
+            document.getElementById('stat-time-diff').innerText = `${diff >= 0 ? '+' : ''}${diff.toFixed(1)}시간`;
+        }
+
+        function saveImprovement() {
+            const input = document.getElementById('improvement-input');
+            if (!input.value) return;
+            state.improvements.push({ id: crypto.randomUUID(), content: input.value });
+            saveData(state);
+            input.value = '';
+            initApp();
+        }
+
+        function renderImprovements() {
+            const container = document.getElementById('improvement-list');
+            container.innerHTML = state.improvements.map(i => `<li>${escapeHtml(i.content)}</li>`).join('');
+        }
+
+        function scrollToSection(id) {
+            document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // --- 카드 5: 내보내기 기능 ---
+        function exportDataJSON() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `plan_do_see_data_${new Date().toISOString().slice(0,10)}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        }
+
+        window.onload = initApp;
+    </script>
+</body>
+</html>
